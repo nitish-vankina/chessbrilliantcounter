@@ -10,13 +10,38 @@
 
     <div class="w-full max-w-md bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
         <h1 class="text-2xl font-bold text-center mb-2 text-emerald-400">♟️ Brilliant Counter</h1>
-        <p class="text-sm text-slate-400 text-center mb-6">Find out how many <span class="text-teal-400 font-semibold">!!</span> moves you've played recently.</p>
+        <p class="text-sm text-slate-400 text-center mb-6">Find out how many <span class="text-teal-400 font-semibold">!!</span> moves you've played.</p>
 
         <div class="space-y-4">
             <div>
                 <label for="username" class="block text-sm font-medium text-slate-300 mb-1">Chess.com Username</label>
                 <input type="text" id="username" placeholder="e.g., MagnusCarlsen" 
                     class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="yearSelect" class="block text-sm font-medium text-slate-300 mb-1">Year</label>
+                    <select id="yearSelect" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white">
+                        </select>
+                </div>
+                <div>
+                    <label for="monthSelect" class="block text-sm font-medium text-slate-300 mb-1">Month</label>
+                    <select id="monthSelect" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white">
+                        <option value="01">January</option>
+                        <option value="02">February</option>
+                        <option value="03">March</option>
+                        <option value="04">April</option>
+                        <option value="05">May</option>
+                        <option value="06">June</option>
+                        <option value="07">July</option>
+                        <option value="08">August</option>
+                        <option value="09">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
             </div>
             
             <button id="searchBtn" onclick="fetchBrilliantMoves()" 
@@ -30,13 +55,34 @@
         <div id="resultCard" class="mt-6 p-6 bg-slate-900 rounded-xl border border-slate-700 text-center hidden">
             <h2 class="text-gray-400 uppercase tracking-wider text-xs font-bold">Total Brilliant Moves</h2>
             <p id="brilliantCount" class="text-5xl font-black text-teal-400 my-2">0</p>
-            <p id="gamesAnalyzed" class="text-xs text-slate-500">Across 0 games (Current Month)</p>
+            <p id="gamesAnalyzed" class="text-xs text-slate-500">Across 0 games</p>
         </div>
     </div>
 
     <script>
+        // Automatically populate year dropdown with past years up to current year
+        const yearSelect = document.getElementById('yearSelect');
+        const monthSelect = document.getElementById('monthSelect');
+        const currentYear = new Date().getFullYear();
+        const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+
+        for (let i = currentYear; i >= 2010; i--) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.text = i;
+            yearSelect.appendChild(option);
+        }
+
+        // Set default dropdown values to current month/year
+        yearSelect.value = currentYear;
+        monthSelect.value = currentMonth;
+
         async function fetchBrilliantMoves() {
             const username = document.getElementById('username').value.trim().toLowerCase();
+            const year = yearSelect.value;
+            const month = monthSelect.value;
+            const monthText = monthSelect.options[monthSelect.selectedIndex].text;
+
             const statusDiv = document.getElementById('status');
             const resultCard = document.getElementById('resultCard');
             const countEl = document.getElementById('brilliantCount');
@@ -53,19 +99,17 @@
             statusDiv.innerText = "Connecting to Chess.com...";
 
             try {
-                // Get current year and month to check recent games
-                const now = new Date();
-                const year = now.getFullYear();
-                // API expects 2-digit month (e.g., "01", "07")
-                const month = String(now.getMonth() + 1).padStart(2, '0'); 
+                statusDiv.innerText = `Fetching games for ${monthText} ${year}...`;
 
-                statusDiv.innerText = `Fetching games for ${month}/${year}...`;
-
-                // Fetch the game archive for the current month
-                const response = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`);
+                // Fetch data with custom headers required by Chess.com API policies
+                const response = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`, {
+                    headers: {
+                        'User-Agent': 'ChessBrilliantCounter/1.0 (GitHub Pages deployment)'
+                    }
+                });
                 
                 if (!response.ok) {
-                    if (response.status === 404) throw new Error("Player or archive not found.");
+                    if (response.status === 404) throw new Error("Player or archive data not found for this period.");
                     throw new Error("Failed to fetch data from Chess.com.");
                 }
 
@@ -76,7 +120,7 @@
                     statusDiv.innerText = "";
                     resultCard.classList.remove('hidden');
                     countEl.innerText = "0";
-                    gamesEl.innerText = `No games found played in ${month}/${year}.`;
+                    gamesEl.innerText = `No games found played in ${monthText} ${year}.`;
                     return;
                 }
 
@@ -84,10 +128,9 @@
 
                 let brilliantCount = 0;
 
-                // Loop through games and count "!!" in the PGN text
+                // Loop through games and count "!!" in the PGN data
                 games.forEach(game => {
                     if (game.pgn) {
-                        // Chess.com marks brilliant moves as "!!" in the move text/PGN
                         const matches = game.pgn.match(/!!/g);
                         if (matches) {
                             brilliantCount += matches.length;
@@ -99,7 +142,7 @@
                 statusDiv.classList.add('hidden');
                 resultCard.classList.remove('hidden');
                 countEl.innerText = brilliantCount;
-                gamesEl.innerText = `Analyzed ${games.length} games from this month.`;
+                gamesEl.innerText = `Analyzed ${games.length} games from ${monthText} ${year}.`;
 
             } catch (error) {
                 statusDiv.innerText = `Error: ${error.message}`;
