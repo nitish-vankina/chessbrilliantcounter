@@ -22,8 +22,7 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label for="yearSelect" class="block text-sm font-medium text-slate-300 mb-1">Year</label>
-                    <select id="yearSelect" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white">
-                        </select>
+                    <select id="yearSelect" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white"></select>
                 </div>
                 <div>
                     <label for="monthSelect" class="block text-sm font-medium text-slate-300 mb-1">Month</label>
@@ -60,7 +59,6 @@
     </div>
 
     <script>
-        // Automatically populate year dropdown with past years up to current year
         const yearSelect = document.getElementById('yearSelect');
         const monthSelect = document.getElementById('monthSelect');
         const currentYear = new Date().getFullYear();
@@ -73,7 +71,6 @@
             yearSelect.appendChild(option);
         }
 
-        // Set default dropdown values to current month/year
         yearSelect.value = currentYear;
         monthSelect.value = currentMonth;
 
@@ -93,7 +90,6 @@
                 return;
             }
 
-            // Reset UI
             statusDiv.classList.remove('hidden');
             resultCard.classList.add('hidden');
             statusDiv.innerText = "Connecting to Chess.com...";
@@ -101,15 +97,12 @@
             try {
                 statusDiv.innerText = `Fetching games for ${monthText} ${year}...`;
 
-                // Fetch data with custom headers required by Chess.com API policies
-                const response = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`, {
-                    headers: {
-                        'User-Agent': 'ChessBrilliantCounter/1.0 (GitHub Pages deployment)'
-                    }
-                });
+                // We remove the custom header inside the browser to avoid CORS blockades, 
+                // allowing standard browser fetch to rely on standard request routines.
+                const response = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`);
                 
                 if (!response.ok) {
-                    if (response.status === 404) throw new Error("Player or archive data not found for this period.");
+                    if (response.status === 404) throw new Error("Player or archive data not found.");
                     throw new Error("Failed to fetch data from Chess.com.");
                 }
 
@@ -124,21 +117,26 @@
                     return;
                 }
 
-                statusDiv.innerText = `Analyzing ${games.length} games for !! annotations...`;
+                statusDiv.innerText = `Deep scanning ${games.length} games...`;
 
                 let brilliantCount = 0;
 
-                // Loop through games and count "!!" in the PGN data
                 games.forEach(game => {
                     if (game.pgn) {
-                        const matches = game.pgn.match(/!!/g);
-                        if (matches) {
-                            brilliantCount += matches.length;
+                        // 1. Check for literal "!!" text
+                        const literalMatches = game.pgn.match(/!!/g);
+                        if (literalMatches) {
+                            brilliantCount += literalMatches.length;
+                        }
+
+                        // 2. Check for universal PGN numeric glyph "$18" which represents a Brilliant Move evaluation
+                        const glyphMatches = game.pgn.match(/\s\$18\b/g);
+                        if (glyphMatches) {
+                            brilliantCount += glyphMatches.length;
                         }
                     }
                 });
 
-                // Display Results
                 statusDiv.classList.add('hidden');
                 resultCard.classList.remove('hidden');
                 countEl.innerText = brilliantCount;
