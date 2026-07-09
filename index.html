@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess.com Brilliant Move Counter</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+        <h1 class="text-2xl font-bold text-center mb-2 text-emerald-400">♟️ Brilliant Counter</h1>
+        <p class="text-sm text-slate-400 text-center mb-6">Find out how many <span class="text-teal-400 font-semibold">!!</span> moves you've played recently.</p>
+
+        <div class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-slate-300 mb-1">Chess.com Username</label>
+                <input type="text" id="username" placeholder="e.g., MagnusCarlsen" 
+                    class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-white">
+            </div>
+            
+            <button id="searchBtn" onclick="fetchBrilliantMoves()" 
+                class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-lg shadow-emerald-900/40">
+                Analyze Games
+            </button>
+        </div>
+
+        <div id="status" class="mt-4 text-center text-sm text-slate-400 hidden"></div>
+
+        <div id="resultCard" class="mt-6 p-6 bg-slate-900 rounded-xl border border-slate-700 text-center hidden">
+            <h2 class="text-gray-400 uppercase tracking-wider text-xs font-bold">Total Brilliant Moves</h2>
+            <p id="brilliantCount" class="text-5xl font-black text-teal-400 my-2">0</p>
+            <p id="gamesAnalyzed" class="text-xs text-slate-500">Across 0 games (Current Month)</p>
+        </div>
+    </div>
+
+    <script>
+        async function fetchBrilliantMoves() {
+            const username = document.getElementById('username').value.trim().toLowerCase();
+            const statusDiv = document.getElementById('status');
+            const resultCard = document.getElementById('resultCard');
+            const countEl = document.getElementById('brilliantCount');
+            const gamesEl = document.getElementById('gamesAnalyzed');
+
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            // Reset UI
+            statusDiv.classList.remove('hidden');
+            resultCard.classList.add('hidden');
+            statusDiv.innerText = "Connecting to Chess.com...";
+
+            try {
+                // Get current year and month to check recent games
+                const now = new Date();
+                const year = now.getFullYear();
+                // API expects 2-digit month (e.g., "01", "07")
+                const month = String(now.getMonth() + 1).padStart(2, '0'); 
+
+                statusDiv.innerText = `Fetching games for ${month}/${year}...`;
+
+                // Fetch the game archive for the current month
+                const response = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) throw new Error("Player or archive not found.");
+                    throw new Error("Failed to fetch data from Chess.com.");
+                }
+
+                const data = await response.json();
+                const games = data.games || [];
+
+                if (games.length === 0) {
+                    statusDiv.innerText = "";
+                    resultCard.classList.remove('hidden');
+                    countEl.innerText = "0";
+                    gamesEl.innerText = `No games found played in ${month}/${year}.`;
+                    return;
+                }
+
+                statusDiv.innerText = `Analyzing ${games.length} games for !! annotations...`;
+
+                let brilliantCount = 0;
+
+                // Loop through games and count "!!" in the PGN text
+                games.forEach(game => {
+                    if (game.pgn) {
+                        // Chess.com marks brilliant moves as "!!" in the move text/PGN
+                        const matches = game.pgn.match(/!!/g);
+                        if (matches) {
+                            brilliantCount += matches.length;
+                        }
+                    }
+                });
+
+                // Display Results
+                statusDiv.classList.add('hidden');
+                resultCard.classList.remove('hidden');
+                countEl.innerText = brilliantCount;
+                gamesEl.innerText = `Analyzed ${games.length} games from this month.`;
+
+            } catch (error) {
+                statusDiv.innerText = `Error: ${error.message}`;
+                statusDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
