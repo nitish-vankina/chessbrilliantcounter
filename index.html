@@ -8,11 +8,11 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
-    <div class="w-full max-w-md bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
+    <div class="w-full max-w-2xl bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-700">
         <h1 class="text-2xl font-bold text-center mb-2 text-emerald-400">♟️ Brilliant Counter</h1>
         <p class="text-sm text-slate-400 text-center mb-6">Find out how many <span class="text-teal-400 font-semibold">!!</span> moves you've played.</p>
 
-        <div class="space-y-4">
+        <div class="space-y-4 max-w-md mx-auto">
             <div>
                 <label for="username" class="block text-sm font-medium text-slate-300 mb-1">Chess.com Username</label>
                 <input type="text" id="username" placeholder="e.g., MagnusCarlsen" 
@@ -51,10 +51,15 @@
 
         <div id="status" class="mt-4 text-center text-sm text-slate-400 hidden"></div>
 
-        <div id="resultCard" class="mt-6 p-6 bg-slate-900 rounded-xl border border-slate-700 text-center hidden">
+        <div id="resultCard" class="mt-6 p-6 bg-slate-900 rounded-xl border border-slate-700 text-center hidden max-w-md mx-auto">
             <h2 class="text-gray-400 uppercase tracking-wider text-xs font-bold">Total Brilliant Moves</h2>
             <p id="brilliantCount" class="text-5xl font-black text-teal-400 my-2">0</p>
             <p id="gamesAnalyzed" class="text-xs text-slate-500">Across 0 games</p>
+        </div>
+
+        <div class="mt-8 border-t border-slate-700 pt-4">
+            <h3 class="text-sm font-semibold text-slate-400 mb-2">Raw Game Data Debugger</h3>
+            <textarea id="debugBox" readonly class="w-full h-40 p-2 bg-slate-950 text-xs font-mono rounded border border-slate-800 text-slate-400" placeholder="Raw PGN text snippets will appear here after clicking analyze to help diagnose what Chess.com sent back..."></textarea>
         </div>
     </div>
 
@@ -84,6 +89,7 @@
             const resultCard = document.getElementById('resultCard');
             const countEl = document.getElementById('brilliantCount');
             const gamesEl = document.getElementById('gamesAnalyzed');
+            const debugBox = document.getElementById('debugBox');
 
             if (!username) {
                 alert('Please enter a username');
@@ -93,12 +99,11 @@
             statusDiv.classList.remove('hidden');
             resultCard.classList.add('hidden');
             statusDiv.innerText = "Connecting to Chess.com...";
+            debugBox.value = "Fetching data...";
 
             try {
                 statusDiv.innerText = `Fetching games for ${monthText} ${year}...`;
 
-                // We remove the custom header inside the browser to avoid CORS blockades, 
-                // allowing standard browser fetch to rely on standard request routines.
                 const response = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`);
                 
                 if (!response.ok) {
@@ -114,28 +119,32 @@
                     resultCard.classList.remove('hidden');
                     countEl.innerText = "0";
                     gamesEl.innerText = `No games found played in ${monthText} ${year}.`;
+                    debugBox.value = "API returned an empty list of games for this month.";
                     return;
                 }
 
                 statusDiv.innerText = `Deep scanning ${games.length} games...`;
 
                 let brilliantCount = 0;
+                let debugText = `Total Games Found: ${games.length}\n\n--- FIRST 2 GAMES RAW TEXT SNIPPETS ---\n`;
 
-                games.forEach(game => {
+                games.forEach((game, index) => {
                     if (game.pgn) {
-                        // 1. Check for literal "!!" text
-                        const literalMatches = game.pgn.match(/!!/g);
-                        if (literalMatches) {
-                            brilliantCount += literalMatches.length;
+                        // Capture text for the first couple of games to see what Chess.com gave us
+                        if (index < 2) {
+                            debugText += `\n[Game #${index + 1}]\n${game.pgn.substring(0, 400)}...\n`;
                         }
 
-                        // 2. Check for universal PGN numeric glyph "$18" which represents a Brilliant Move evaluation
+                        // Count standard patterns
+                        const literalMatches = game.pgn.match(/!!/g);
+                        if (literalMatches) brilliantCount += literalMatches.length;
+
                         const glyphMatches = game.pgn.match(/\s\$18\b/g);
-                        if (glyphMatches) {
-                            brilliantCount += glyphMatches.length;
-                        }
+                        if (glyphMatches) brilliantCount += glyphMatches.length;
                     }
                 });
+
+                debugBox.value = debugText;
 
                 statusDiv.classList.add('hidden');
                 resultCard.classList.remove('hidden');
@@ -145,6 +154,7 @@
             } catch (error) {
                 statusDiv.innerText = `Error: ${error.message}`;
                 statusDiv.classList.remove('hidden');
+                debugBox.value = `Error encountered: ${error.message}`;
             }
         }
     </script>
